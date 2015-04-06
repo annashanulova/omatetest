@@ -1,10 +1,11 @@
 package com.omatetest.makora.omatetest.utils;
 
 import android.content.Context;
-import net.sqlcipher.SQLException;
-import net.sqlcipher.SQLiteDatabase;
-import net.sqlcipher.SQLiteOpenHelper;
 import android.util.Log;
+
+import net.sqlcipher.SQLException;
+import net.sqlcipher.database.SQLiteDatabase;
+import net.sqlcipher.database.SQLiteOpenHelper;
 
 /**
  * Created by anna.hanulova on 02.04.2015.
@@ -23,12 +24,13 @@ public class DBHelper extends SQLiteOpenHelper {
                     "`start` long NOT NULL," +
                     "`x` double NOT NULL," +
                     "`y` double NOT NULL, " +
-                    "`z` double NOT NULL)",
-            "CREATE TABLE IF NOT EXISTS `moss_users_wifi_bssids` (" +
+                    "`z` double NOT NULL, " +
+                    "`uploaded` BOOLEAN DEFAULT 0)",
+            "CREATE TABLE IF NOT EXISTS `users_wifi_bssids` (" +
                     "`id` INTEGER PRIMARY KEY AUTOINCREMENT," +
                     "`start` long NOT NULL," +
                     "`bssid` char(65) NOT NULL," +
-                    "`signal` double NOT NULL " +
+                    "`level` int NOT NULL, " +
                     "`uploaded` BOOLEAN DEFAULT 0)"
     };
 
@@ -74,7 +76,7 @@ public class DBHelper extends SQLiteOpenHelper {
         for (String init_command : INI_CREATE_COMMANDS) {
             try {
                 db.execSQL(init_command);
-                Log.e("DBHelper", init_command + " successful");
+                Log.i("DBHelper", init_command + " successful");
             } catch (SQLException e) {
                 Log.e("SQL", e + " " + init_command);
             }
