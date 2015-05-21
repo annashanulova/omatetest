@@ -33,11 +33,9 @@ public class MainActivity extends ActionBarActivity {
 
     private final String TAG = "MainActivity";
 
-    private Button mAccel, mWifi, mDump;
-    private Boolean mAccelOn = false, mWifiOn = false;
+    private Button mDump, mServiceButton;
+    private Boolean mServiceOn = false;
     private Context mContext;
-    private SensorManager mSensorManager;
-    private Sensor mAccelerometer;
     private DBHelper dbHelper;
     private SQLiteDatabase db;
     private WifiManager wifiManager;
@@ -46,37 +44,23 @@ public class MainActivity extends ActionBarActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        mAccel = (Button) findViewById(R.id.accel_button);
-        mAccel.setOnClickListener(mOnAccelClickListener);
-        mWifi = (Button) findViewById(R.id.wifi_button);
-        mWifi.setOnClickListener(mOnWifiClickListener);
+        mServiceButton = (Button) findViewById(R.id.start_service_button);
+        mServiceButton.setOnClickListener(mOnStartServiceListener);
         mDump = (Button) findViewById(R.id.dump_button);
         mDump.setOnClickListener(mOnDumpClickListener);
         mContext = getApplicationContext();
-        mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         dbHelper = DBHelper.getInstance(mContext);
         db = DBHelper.getWritableInstance(mContext);
-        wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
     }
 
-   private View.OnClickListener mOnAccelClickListener = new View.OnClickListener(){
+    private View.OnClickListener mOnStartServiceListener = new View.OnClickListener() {
+        @Override
+        public void onClick(View view) {
 
-       @Override
-       public void onClick(View view) {
-           if (!mAccelOn){
-               mAccel.setText(R.string.stop_accel);
-               mAccelOn = true;
-               mSensorManager.registerListener(mAccelListener, mAccelerometer,SensorManager.SENSOR_DELAY_NORMAL);
-           } else {
-               mAccel.setText(R.string.start_accel);
-               mAccelOn = false;
-               mSensorManager.unregisterListener(mAccelListener,mAccelerometer);
-           }
-       }
-   };
+        }
+    };
 
-   private View.OnClickListener mOnWifiClickListener = new View.OnClickListener(){
+  /* private View.OnClickListener mOnWifiClickListener = new View.OnClickListener(){
 
         @Override
         public void onClick(View view) {
@@ -96,7 +80,7 @@ public class MainActivity extends ActionBarActivity {
                 unregisterReceiver(mWifiScanner);
             }
         }
-    };
+    };*/
 
     private View.OnClickListener mOnDumpClickListener = new View.OnClickListener(){
 
@@ -121,25 +105,7 @@ public class MainActivity extends ActionBarActivity {
         }
     };
 
-     private SensorEventListener mAccelListener = new SensorEventListener() {
-         @Override
-         public final void onSensorChanged(SensorEvent event) {
-             float[] eventValues = event.values;
-             // Do something with this sensor value.
-             ContentValues values = new ContentValues();
-             values.put("start", System.currentTimeMillis());
-             values.put("x", eventValues[0]);
-             values.put("y", eventValues[1]);
-             values.put("z", eventValues[2]);
-             Log.d(TAG, "inserting into DB: " + Arrays.toString(eventValues));
-             db.insertOrThrow("users_acc_raw", null, values);
-         }
 
-         @Override
-         public void onAccuracyChanged(Sensor sensor, int i) {
-
-         }
-     };
 
         private BroadcastReceiver mWifiScanner = new BroadcastReceiver()
         {

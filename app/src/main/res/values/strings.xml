@@ -1,10 +1,10 @@
 <resources>
     <string name="app_name">omatetest</string>
 
-    <string name="start_accel">Accel. START</string>
-    <string name="stop_accel">Accel. STOP</string>
-    <string name="start_wifi">WLAN START</string>
-    <string name="stop_wifi">WLAN STOP</string>
+    <string name="start_service">Service START</string>
+    <string name="stop_service">Service STOP</string>
+    <string name="service_running">Service IS running</string>
+    <string name="service_inactive">Service is NOT running</string>
     <string name="dump_data">Dump data</string>
     <string name="dump_success">Success!</string>
 </resources>
