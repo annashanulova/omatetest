@@ -24,9 +24,12 @@ public class SensorService extends Service {
 
     private SensorManager mSensorManager;
     private Sensor mAccelerometer;
+    private Sensor mGravitySensor;
+    private Sensor mLinearAccelerometer;
     private DBHelper dbHelper;
     private SQLiteDatabase db;
     //   private WifiManager wifiManager;
+    private int ACC_DELAY = SensorManager.SENSOR_DELAY_GAME;
 
     public SensorService() {
     }
@@ -37,26 +40,32 @@ public class SensorService extends Service {
         //register listeners
         mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        mSensorManager.registerListener(mAccelListener, mAccelerometer, SensorManager.SENSOR_DELAY_NORMAL);
-        //   wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+        mSensorManager.registerListener(mSensorListener, mAccelerometer, ACC_DELAY);
+        mGravitySensor = mSensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
+        mSensorManager.registerListener(mSensorListener, mGravitySensor, ACC_DELAY);
+        mLinearAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
+        mSensorManager.registerListener(mSensorListener, mLinearAccelerometer, ACC_DELAY);
+        //wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
         //open DB
         dbHelper = DBHelper.getInstance(this);
         db = DBHelper.getWritableInstance(this);
+        Log.d(TAG, "starting service");
         return START_STICKY;
     }
 
-    private SensorEventListener mAccelListener = new SensorEventListener() {
+    private SensorEventListener mSensorListener = new SensorEventListener() {
         @Override
         public final void onSensorChanged(SensorEvent event) {
             float[] eventValues = event.values;
             // Do something with this sensor value.
             ContentValues values = new ContentValues();
             values.put("start", System.currentTimeMillis());
+            values.put("sensor", event.sensor.getType());
             values.put("x", eventValues[0]);
             values.put("y", eventValues[1]);
             values.put("z", eventValues[2]);
-            Log.d(TAG, "inserting into DB: " + Arrays.toString(eventValues));
-            db.insertOrThrow("users_acc_raw", null, values);
+            //  Log.d(TAG, "inserting into DB: " + Arrays.toString(eventValues));
+            db.insertOrThrow("users_motion_raw", null, values);
         }
 
         @Override
@@ -67,7 +76,10 @@ public class SensorService extends Service {
 
     @Override
     public void onDestroy() {
-        mSensorManager.unregisterListener(mAccelListener, mAccelerometer);
+        Log.d(TAG, "destroying service");
+        mSensorManager.unregisterListener(mSensorListener, mAccelerometer);
+        mSensorManager.unregisterListener(mSensorListener, mGravitySensor);
+        mSensorManager.unregisterListener(mSensorListener, mLinearAccelerometer);
         super.onDestroy();
     }
 

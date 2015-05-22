@@ -19,8 +19,9 @@ public class DBHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "omatetestDB";
 
     private static final String INI_CREATE_COMMANDS[] = {
-            "CREATE TABLE IF NOT EXISTS `users_acc_raw` (" +
+            "CREATE TABLE IF NOT EXISTS `users_motion_raw` (" +
                     "`id` INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "`sensor` int NOT NULL," +
                     "`start` long NOT NULL," +
                     "`x` double NOT NULL," +
                     "`y` double NOT NULL, " +
