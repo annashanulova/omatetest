@@ -9,6 +9,8 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.net.wifi.WifiManager;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.util.Log;
 
@@ -29,7 +31,8 @@ public class SensorService extends Service {
     private DBHelper dbHelper;
     private SQLiteDatabase db;
     //   private WifiManager wifiManager;
-    private int ACC_DELAY = SensorManager.SENSOR_DELAY_GAME;
+    private HandlerThread mAccelThread, mGravityThread, mLinearThread;
+    private int ACC_DELAY = 34000;
 
     public SensorService() {
     }
@@ -39,12 +42,24 @@ public class SensorService extends Service {
         //start alarms
         //register listeners
         mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        //register accelerometer
         mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        mSensorManager.registerListener(mSensorListener, mAccelerometer, ACC_DELAY);
+        mAccelThread = new HandlerThread("AccelerometerListener");
+        mAccelThread.start();
+        Handler accelHandler = new Handler(mAccelThread.getLooper());
+        mSensorManager.registerListener(mSensorListener, mAccelerometer, ACC_DELAY, accelHandler);
+        //register gravity
         mGravitySensor = mSensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
-        mSensorManager.registerListener(mSensorListener, mGravitySensor, ACC_DELAY);
+        mGravityThread = new HandlerThread("GravityListener");
+        mGravityThread.start();
+        Handler gravityHandler = new Handler(mGravityThread.getLooper());
+        mSensorManager.registerListener(mSensorListener, mGravitySensor, ACC_DELAY, gravityHandler);
+        //register linear accelerometer
         mLinearAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
-        mSensorManager.registerListener(mSensorListener, mLinearAccelerometer, ACC_DELAY);
+        mLinearThread = new HandlerThread("LinearAccelerometerListener");
+        mLinearThread.start();
+        Handler linearHandler = new Handler(mLinearThread.getLooper());
+        mSensorManager.registerListener(mSensorListener, mLinearAccelerometer, ACC_DELAY,linearHandler);
         //wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
         //open DB
         dbHelper = DBHelper.getInstance(this);
@@ -57,7 +72,7 @@ public class SensorService extends Service {
         @Override
         public final void onSensorChanged(SensorEvent event) {
             float[] eventValues = event.values;
-            // Do something with this sensor value.
+            Log.d(TAG,"sensor: " + event.sensor.getType());
             ContentValues values = new ContentValues();
             values.put("start", System.currentTimeMillis());
             values.put("sensor", event.sensor.getType());
@@ -78,8 +93,17 @@ public class SensorService extends Service {
     public void onDestroy() {
         Log.d(TAG, "destroying service");
         mSensorManager.unregisterListener(mSensorListener, mAccelerometer);
+        if (mAccelThread.isAlive()){
+            mAccelThread.quit();
+        }
         mSensorManager.unregisterListener(mSensorListener, mGravitySensor);
+        if (mGravityThread.isAlive()){
+            mGravityThread.quit();
+        }
         mSensorManager.unregisterListener(mSensorListener, mLinearAccelerometer);
+        if (mLinearThread.isAlive()){
+            mLinearThread.quit();
+        }
         super.onDestroy();
     }
 

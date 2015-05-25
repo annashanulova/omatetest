@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.v7.app.ActionBarActivity;
 import android.util.Log;
 import android.view.View;
@@ -19,10 +20,17 @@ import com.omatetest.makora.omatetest.utils.DBHelper;
 import net.sqlcipher.Cursor;
 import net.sqlcipher.database.SQLiteDatabase;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+
 
 public class MainActivity extends ActionBarActivity {
 
     private final String TAG = "Watch: MainActivity";
+
+    private final String APP_LOG_FOLDER_NAME = "mySensorListener";
 
     private Button mDump, mServiceButton;
     private Boolean mServiceOn = false;
@@ -32,6 +40,8 @@ public class MainActivity extends ActionBarActivity {
     private WifiManager wifiManager;
     private ActivityManager activityManager;
     private TextView tvInfoText;
+    private File mLogFile = null;
+    private FileOutputStream mFileStream = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,7 +51,7 @@ public class MainActivity extends ActionBarActivity {
         mServiceButton = (Button) findViewById(R.id.start_service_button);
         mServiceButton.setOnClickListener(mOnStartServiceListener);
         mDump = (Button) findViewById(R.id.dump_button);
-        mDump.setOnClickListener(mOnDumpClickListener);
+       // mDump.setOnClickListener(mOnDumpClickListener);
         mContext = getApplicationContext();
         dbHelper = DBHelper.getInstance(mContext);
         db = DBHelper.getWritableInstance(mContext);
@@ -69,10 +79,29 @@ public class MainActivity extends ActionBarActivity {
 
         @Override
         public void onClick(View view) {
+            setupFolderAndFile();
+            final int TIME_INDEX = 0;
+            final int SENSOR_INDEX = 0;
+            final int X_INDEX = 0;
+            final int Y_INDEX = 0;
+            final int Z_INDEX = 0;
             Cursor cAccel = db.query("users_motion_raw", new String[]{"start", "sensor", "x", "y", "z"}, null, null, null, null, null);
             if (cAccel.moveToFirst()) {
+                // Log.d(TAG, "start: " + cAccel.getLong(0) + " sensor: " + cAccel.getInt(1) + " x: " + cAccel.getFloat(2) + " y: " + cAccel.getFloat(3) + " z: " + cAccel.getFloat(4));
+
                 do {
-                    Log.d(TAG, "start: " + cAccel.getLong(0) + " sensor: " + cAccel.getInt(1) + " x: " + cAccel.getFloat(2) + " y: " + cAccel.getFloat(3) + " z: " + cAccel.getFloat(4));
+                    String formatted = String.valueOf(cAccel.getLong(TIME_INDEX))
+                                            + "\t" + String.valueOf(cAccel.getInt(SENSOR_INDEX))
+                                            + "\t" + String.valueOf(cAccel.getFloat(X_INDEX))
+                                            + "\t" + String.valueOf(cAccel.getFloat(Y_INDEX))
+                                            + "\t" + String.valueOf(cAccel.getFloat(Z_INDEX))
+                                            + "\r\n";
+                    Log.d(TAG,formatted);
+                    try {
+                        mFileStream.write(formatted.getBytes());
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 } while (cAccel.moveToNext());
             }
          /*   Cursor cWifi = db.query("users_wifi_bssids",new String[]{"start","bssid","level"},null,null,null,null,null);
@@ -100,6 +129,46 @@ public class MainActivity extends ActionBarActivity {
             }
         }
         return false;
+    }
+
+    /**
+     * Sets up folder and file to log the file on it
+     * http://pastebin.com/QuHd0LNU
+     */
+    private void setupFolderAndFile() {
+
+        Log.d(TAG,"setting up log file");
+        File folder = new File(Environment.getExternalStorageDirectory()
+                + File.separator + APP_LOG_FOLDER_NAME);
+        Log.d(TAG,Environment.getExternalStorageDirectory()
+                + File.separator + APP_LOG_FOLDER_NAME);
+
+        if (!folder.exists()) {
+            folder.mkdirs();
+        }
+
+        mLogFile = new File(Environment.getExternalStorageDirectory().toString()
+                + File.separator + APP_LOG_FOLDER_NAME
+                + File.separator + "log_dump"
+                + File.separator + System.currentTimeMillis());
+
+        if (!mLogFile.exists()) {
+            try {
+                mLogFile.createNewFile();
+            } catch (IOException e) {
+                Log.d(TAG,"Problem opening a new file " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+
+        if (mFileStream == null) {
+            try {
+                mFileStream = new FileOutputStream(mLogFile, true);
+            } catch (FileNotFoundException e) {
+                Log.d(TAG,"Problem creating output stream " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
     }
 
   /* private View.OnClickListener mOnWifiClickListener = new View.OnClickListener(){
@@ -142,5 +211,6 @@ public class MainActivity extends ActionBarActivity {
         };
 
    */
+
 
 }
