@@ -2,6 +2,8 @@ package com.omatetest.makora.omatetest;
 
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningServiceInfo;
+import android.app.AlarmManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.WifiManager;
@@ -220,6 +222,5 @@ public class MainActivity extends ActionBarActivity {
         };
 
    */
-
 
 }
