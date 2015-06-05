@@ -89,7 +89,7 @@ public class SensorService extends Service {
         //register listeners
         mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         //register accelerometer
-        mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+       /* mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         mAccelThread = new HandlerThread("AccelerometerListener");
         mAccelThread.start();
         Handler accelHandler = new Handler(mAccelThread.getLooper());
@@ -99,7 +99,7 @@ public class SensorService extends Service {
         mGravityThread = new HandlerThread("GravityListener");
         mGravityThread.start();
         Handler gravityHandler = new Handler(mGravityThread.getLooper());
-        mSensorManager.registerListener(mSensorListener, mGravitySensor, ACC_DELAY, gravityHandler);
+        mSensorManager.registerListener(mSensorListener, mGravitySensor, ACC_DELAY, gravityHandler);*/
         //register linear accelerometer
         mLinearAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
         mLinearThread = new HandlerThread("LinearAccelerometerListener");
@@ -107,7 +107,6 @@ public class SensorService extends Service {
         Handler linearHandler = new Handler(mLinearThread.getLooper());
         mSensorManager.registerListener(mSensorListener, mLinearAccelerometer, ACC_DELAY, linearHandler);
         //wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
-
         locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
     }
 
@@ -135,14 +134,14 @@ public class SensorService extends Service {
     @Override
     public void onDestroy() {
         Log.d(TAG, "destroying service");
-        mSensorManager.unregisterListener(mSensorListener, mAccelerometer);
+     /*   mSensorManager.unregisterListener(mSensorListener, mAccelerometer);
         if (mAccelThread.isAlive()) {
             mAccelThread.quit();
         }
         mSensorManager.unregisterListener(mSensorListener, mGravitySensor);
         if (mGravityThread.isAlive()) {
             mGravityThread.quit();
-        }
+        }*/
         mSensorManager.unregisterListener(mSensorListener, mLinearAccelerometer);
         if (mLinearThread.isAlive()) {
             mLinearThread.quit();

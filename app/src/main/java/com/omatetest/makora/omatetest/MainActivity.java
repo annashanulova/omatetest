@@ -87,32 +87,42 @@ public class MainActivity extends ActionBarActivity {
             final int X_INDEX = 2;
             final int Y_INDEX = 3;
             final int Z_INDEX = 4;
-            Cursor cAccel = db.query("users_motion_raw", new String[]{"start", "sensor", "x", "y", "z"}, null, null, null, null, null);
+            Cursor cAccel = db.query("users_motion_raw", new String[]{"start", "sensor", "x", "y", "z"}, "start > ?", new String[]{"1433306459000"}, null, null, null);
+            int count = 0;
+            int currentCount = 0;
             if (cAccel.moveToFirst()) {
                 // Log.d(TAG, "start: " + cAccel.getLong(0) + " sensor: " + cAccel.getInt(1) + " x: " + cAccel.getFloat(2) + " y: " + cAccel.getFloat(3) + " z: " + cAccel.getFloat(4));
                 String header = "Timestamp (millisecs)" + "\t" + "Sensor" + "\t" + "x" + "\t" + "y" + "\t" + "z" + "\r\n";
+                Log.d(TAG, "data found!");
                 Log.d(TAG, header);
                 try {
                     mFileStream.write(header.getBytes());
                 } catch (IOException e) {
+                    Log.d(TAG, "Problem writing header to file");
                     e.printStackTrace();
                 }
                 do {
+                    currentCount++;
+                    if (currentCount == (count + 10)) {
+                        count = currentCount;
+                        Log.d(TAG, "data points: " + count);
+                    }
                     String formatted = String.valueOf(cAccel.getLong(TIME_INDEX))
                             + "\t" + cAccel.getString(SENSOR_INDEX)
                             + "\t" + String.valueOf(cAccel.getFloat(X_INDEX))
                             + "\t" + String.valueOf(cAccel.getFloat(Y_INDEX))
                             + "\t" + String.valueOf(cAccel.getFloat(Z_INDEX))
                             + "\r\n";
-                    Log.d(TAG, formatted);
+                    // Log.d(TAG, formatted);
                     try {
                         mFileStream.write(formatted.getBytes());
                     } catch (IOException e) {
+                        Log.d(TAG, "Problem writing to file!");
                         e.printStackTrace();
                     }
                 } while (cAccel.moveToNext());
             }
-         /*   Cursor cWifi = db.query("users_wifi_bssids",new String[]{"start","bssid","level"},null,null,null,null,null);
+          /* Cursor cWifi = db.query("users_wifi_bssids",new String[]{"start","bssid","level"},null,null,null,null,null);
             if (cWifi.moveToFirst() ){
                 do {
                     Log.d(TAG,"start: " + cWifi.getLong(0) + " bssid: " + cWifi.getString(1) + " level: " + cWifi.getInt(2));
