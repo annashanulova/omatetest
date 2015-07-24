@@ -24,6 +24,12 @@ import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GooglePlayServicesUtil;
+import com.google.android.gms.common.Scopes;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.Scope;
+import com.google.android.gms.fitness.Fitness;
 import com.omatetest.makora.omatetest.MainActivity;
 import com.omatetest.makora.omatetest.R;
 import com.omatetest.makora.omatetest.utils.DBHelper;
@@ -50,6 +56,10 @@ public class SensorService extends Service {
     private NotificationManager mNotificationMngr;
     private AlarmManager alarmManager;
     private LocationManager locationManager;
+    private GoogleApiClient mClient = null;
+    private static final String AUTH_PENDING = "auth_state_pending";
+    private boolean authInProgress = false;
+    private Context mContext;
 
     private final int GPS_START = 42;
     private final int GPS_STOP = 43;
@@ -61,9 +71,11 @@ public class SensorService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         startAlarms();
         registerSensorListeners();
+        buildFitnessClient();
         //open DB
         dbHelper = DBHelper.getInstance(this);
         db = DBHelper.getWritableInstance(this);
+        mContext = this.getApplicationContext();
         Log.d(TAG, "starting service");
 
         return START_STICKY;
@@ -147,6 +159,9 @@ public class SensorService extends Service {
             mLinearThread.quit();
         }
         //  mNotificationMngr.cancel(NOTIFICATION_ID);
+        if (mClient.isConnected()) {
+            mClient.disconnect();
+        }
         super.onDestroy();
     }
 
@@ -222,6 +237,49 @@ public class SensorService extends Service {
                     break;
             }
         }
+    }
+
+    /**
+     * SOURCE: https://developers.google.com/fit/android/get-started
+     * Build a {@link GoogleApiClient} that will authenticate the user and allow the application
+     * to connect to Fitness APIs. The scopes included should match the scopes your app needs
+     * (see documentation for details). Authentication will occasionally fail intentionally,
+     * and in those cases, there will be a known resolution, which the OnConnectionFailedListener()
+     * can address. Examples of this include the user never having signed in before, or having
+     * multiple accounts on the device and needing to specify which account to use, etc.
+     */
+    private void buildFitnessClient() {
+        // Create the Google API Client
+        mClient = new GoogleApiClient.Builder(this)
+                .addApi(Fitness.RECORDING_API)
+                .addApi(Fitness.HISTORY_API)
+                .addApi(Fitness.SENSORS_API)
+                .addScope(new Scope(Scopes.FITNESS_LOCATION_READ_WRITE))
+                .addScope(new Scope(Scopes.FITNESS_ACTIVITY_READ_WRITE))
+                .setAccountName("makora.ch@gmail.com")
+                .addConnectionCallbacks(
+                        new GoogleApiClient.ConnectionCallbacks() {
+
+                            @Override
+                            public void onConnected(Bundle bundle) {
+                                //register relevant listeners
+                            }
+
+                            @Override
+                            public void onConnectionSuspended(int i) {
+                                // If your connection to the sensor gets lost at some point,
+                                // you'll be able to determine the reason and react to it here.
+                                if (i == GoogleApiClient.ConnectionCallbacks.CAUSE_NETWORK_LOST) {
+                                    Log.i(TAG, "Connection lost.  Cause: Network Lost.");
+                                } else if (i == GoogleApiClient.ConnectionCallbacks.CAUSE_SERVICE_DISCONNECTED) {
+                                    Log.i(TAG, "Connection lost.  Reason: Service Disconnected");
+                                }
+                                //do I need to stop recording? de-register listeners?
+                            }
+                        }
+                )
+                .build();
+        mClient.connect();
     }
 
 }

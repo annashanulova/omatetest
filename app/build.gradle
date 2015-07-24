@@ -7,7 +7,7 @@ android {
     defaultConfig {
         applicationId "com.omatetest.makora.omatetest"
         minSdkVersion 17
-        targetSdkVersion 22
+        targetSdkVersion 17
         versionCode 1
         versionName "1.0"
     }
@@ -25,4 +25,5 @@ dependencies {
     compile files('libs/commons-codec.jar')
     compile files('libs/guava-r09.jar')
     compile files('libs/sqlcipher.jar')
+    compile 'com.google.android.gms:play-services:7.0.0'
 }

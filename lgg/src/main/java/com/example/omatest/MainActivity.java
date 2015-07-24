@@ -98,15 +98,25 @@ public class MainActivity extends Activity {
                // listSensorType.add(listSensor.get(i).getName());
                 Log.d(TAG,listSensor.get(i).getName());
             }
-            if (!mServiceOn) {
-               // mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER, true);
-                mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-                if (mAccelerometer == null){
-                    Log.d(TAG,"accelerometer is null");
-                } else {
-                    Log.d(TAG, "type of accel: " + mAccelerometer.isWakeUpSensor());
+         /*   if (!mServiceOn) {*/
+            mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION, true);
+            //  mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            if (mAccelerometer == null) {
+                Log.d(TAG, "accelerometer is null");
+                mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
                 }
-                mAccelThread = new HandlerThread("AccelerometerListener");
+            //   } else {
+            Log.d(TAG, "type of accel: " + mAccelerometer.isWakeUpSensor());
+            //   }
+            mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER, true);
+            //  mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            if (mAccelerometer == null) {
+                Log.d(TAG, "accelerometer is null");
+                mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            }
+            //   } else {
+            Log.d(TAG, "type of accel: " + mAccelerometer.isWakeUpSensor());
+         /*       mAccelThread = new HandlerThread("AccelerometerListener");
                 mAccelThread.start();
                 Handler accelHandler = new Handler(mAccelThread.getLooper());
                 mSensorManager.registerListener(mSensorListener, mAccelerometer, ACC_DELAY, accelHandler);
@@ -117,7 +127,7 @@ public class MainActivity extends Activity {
                     mAccelThread.quit();
                 }
                 mServiceOn = false;
-            }
+            }*/
         }
     };
 
