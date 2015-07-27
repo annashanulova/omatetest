@@ -1,14 +1,20 @@
 package com.omatetest.makora.omatetest;
 
+import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningServiceInfo;
 import android.app.AlarmManager;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentSender;
+import android.hardware.Sensor;
+import android.hardware.SensorManager;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.HandlerThread;
 import android.support.v7.app.ActionBarActivity;
 import android.util.Log;
 import android.view.View;
@@ -16,6 +22,12 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GooglePlayServicesUtil;
+import com.google.android.gms.common.Scopes;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.Scope;
+import com.google.android.gms.fitness.Fitness;
 import com.omatetest.makora.omatetest.services.SensorService;
 import com.omatetest.makora.omatetest.utils.DBHelper;
 
@@ -26,9 +38,11 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 
-public class MainActivity extends ActionBarActivity {
+public class MainActivity extends Activity {
 
     private final String TAG = "Watch: MainActivity";
 
@@ -45,6 +59,11 @@ public class MainActivity extends ActionBarActivity {
     private File mLogFile = null;
     private FileOutputStream mFileStream = null;
 
+    private GoogleApiClient mClient = null;
+    private static final String AUTH_PENDING = "auth_state_pending";
+    private boolean authInProgress = false;
+    private static final int REQUEST_OAUTH = 57;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -57,12 +76,23 @@ public class MainActivity extends ActionBarActivity {
         mContext = getApplicationContext();
         dbHelper = DBHelper.getInstance(mContext);
         db = DBHelper.getWritableInstance(mContext);
+        if (savedInstanceState != null) {
+            authInProgress = savedInstanceState.getBoolean(AUTH_PENDING);
+        }
+        buildFitnessClient();
     }
 
     private View.OnClickListener mOnStartServiceListener = new View.OnClickListener() {
         @Override
         public void onClick(View view) {
             Log.d(TAG, "clicked the button");
+            if (mClient.isConnected()) {
+                Log.d(TAG, "disconnecting GoogleFit client");
+                mClient.disconnect();
+            } else {
+                Log.d(TAG, "connecting GoogleFit client");
+                mClient.connect();
+            }
             if (isMyServiceRunning(SensorService.class.getName())) {
                 Intent intent = new Intent(mContext, SensorService.class);
                 stopService(intent);
@@ -70,7 +100,12 @@ public class MainActivity extends ActionBarActivity {
                 mServiceButton.setText(R.string.start_service);
             } else {
                 Intent intent = new Intent(mContext, SensorService.class);
-                startService(intent);
+                ComponentName serviceName = startService(intent);
+                if (serviceName != null) {
+                    Log.d(TAG, serviceName.toString());
+                } else {
+                    Log.d(TAG, "service not started");
+                }
                 tvInfoText.setText(R.string.service_running);
                 mServiceButton.setText(R.string.stop_service);
             }
@@ -170,8 +205,8 @@ public class MainActivity extends ActionBarActivity {
 
         mLogFile = new File(Environment.getExternalStorageDirectory().toString()
                 + File.separator + APP_LOG_FOLDER_NAME
-                + File.separator + "log_dump_"
-                + System.currentTimeMillis());
+                + File.separator + "log_dump"
+                + File.separator + System.currentTimeMillis());
 
         if (!mLogFile.exists()) {
             try {
@@ -192,45 +227,136 @@ public class MainActivity extends ActionBarActivity {
         }
     }
 
-  /* private View.OnClickListener mOnWifiClickListener = new View.OnClickListener(){
+    /**
+     * SOURCE: https://developers.google.com/fit/android/get-started
+     * Build a {@link GoogleApiClient} that will authenticate the user and allow the application
+     * to connect to Fitness APIs. The scopes included should match the scopes your app needs
+     * (see documentation for details). Authentication will occasionally fail intentionally,
+     * and in those cases, there will be a known resolution, which the OnConnectionFailedListener()
+     * can address. Examples of this include the user never having signed in before, or having
+     * multiple accounts on the device and needing to specify which account to use, etc.
+     */
+    private void buildFitnessClient() {
+        // Create the Google API Client
+        Log.d(TAG, "building fitness client");
+        mClient = new GoogleApiClient.Builder(this)
+                .addApi(Fitness.RECORDING_API)
+                .addApi(Fitness.HISTORY_API)
+                .addApi(Fitness.SENSORS_API)
+                .addScope(new Scope(Scopes.FITNESS_LOCATION_READ_WRITE))
+                .addScope(new Scope(Scopes.FITNESS_ACTIVITY_READ_WRITE))
+                .setAccountName("makora.ch@gmail.com")
+                .addConnectionCallbacks(
+                        new GoogleApiClient.ConnectionCallbacks() {
 
-        @Override
-        public void onClick(View view) {
-            if (!mWifiOn){
-                mWifi.setText(R.string.stop_wifi);
-                mWifiOn = true;
-                if (wifiManager.isWifiEnabled() == false)
-                {
-                    Toast.makeText(getApplicationContext(), "wifi is disabled..making it enabled", Toast.LENGTH_LONG).show();
-                    wifiManager.setWifiEnabled(true);
+                            @Override
+                            public void onConnected(Bundle bundle) {
+                                //register relevant listeners
+                            }
+
+                            @Override
+                            public void onConnectionSuspended(int i) {
+                                // If your connection to the sensor gets lost at some point,
+                                // you'll be able to determine the reason and react to it here.
+                                if (i == GoogleApiClient.ConnectionCallbacks.CAUSE_NETWORK_LOST) {
+                                    Log.i(TAG, "Connection lost.  Cause: Network Lost.");
+                                } else if (i == GoogleApiClient.ConnectionCallbacks.CAUSE_SERVICE_DISCONNECTED) {
+                                    Log.i(TAG, "Connection lost.  Reason: Service Disconnected");
+                                }
+                                //do I need to stop recording? de-register listeners?
+                            }
+                        }
+                )
+                .addOnConnectionFailedListener(
+                        new GoogleApiClient.OnConnectionFailedListener() {
+                            // Called whenever the API client fails to connect.
+                            @Override
+                            public void onConnectionFailed(ConnectionResult result) {
+                                Log.i(TAG, "Connection failed. Cause: " + result.toString());
+                                if (!result.hasResolution()) {
+                                    GooglePlayServicesUtil.getErrorDialog(result.getErrorCode(),
+                                            MainActivity.this, 0).show();
+                                    Log.i(TAG, "no resolution to GoogleFit connection failure");
+                                    return;
+                                }
+                                // The failure has a resolution. Resolve it.
+                                // Called typically when the app is not yet authorized, and an
+                                // authorization dialog is displayed to the user.
+                                if (!authInProgress) {
+                                    try {
+                                        Log.i(TAG, "Attempting to resolve failed connection");
+                                        authInProgress = true;
+                                        result.startResolutionForResult(MainActivity.this,
+                                                REQUEST_OAUTH);
+                                    } catch (IntentSender.SendIntentException e) {
+                                        Log.e(TAG,
+                                                "Exception while starting resolution activity", e);
+                                    }
+                                }
+                            }
+                        }
+                )
+                .build();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_OAUTH) {
+            authInProgress = false;
+            if (resultCode == RESULT_OK) {
+                // Make sure the app is not already connected or attempting to connect
+                if (!mClient.isConnecting() && !mClient.isConnected()) {
+                    mClient.connect();
                 }
-                IntentFilter intentFilter = new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
-                registerReceiver(mWifiScanner,intentFilter);
-            } else {
-                mWifi.setText(R.string.start_wifi);
-                mWifiOn = false;
-                unregisterReceiver(mWifiScanner);
             }
         }
-    };*/
+    }
 
-    /*private BroadcastReceiver mWifiScanner = new BroadcastReceiver()
-        {
-            @Override
-            public void onReceive(Context c, Intent intent)
-            {
-                List<ScanResult> results = wifiManager.getScanResults();
-                int size = results.size();
-                for (int i = 0; i< size; i++){
-                    ContentValues values = new ContentValues();
-                    values.put("start",System.currentTimeMillis());
-                    values.put("bssid",results.get(i).BSSID);
-                    values.put("level",results.get(i).level);
-                    db.insertOrThrow("users_wifi_bssids",null,values);
-                }
-            }
-        };
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putBoolean(AUTH_PENDING, authInProgress);
+    }
 
-   */
+   /* private void checkTypeOfAccel() {
+        SensorManager mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        HandlerThread mAccelThread = null;
+        Sensor mAccelerometer = null;
+        List<Sensor> listSensor
+                = mSensorManager.getSensorList(Sensor.TYPE_ALL);
+
+        List<String> listSensorType = new ArrayList<String>();
+        for (int i = 0; i < listSensor.size(); i++) {
+            // listSensorType.add(listSensor.get(i).getName());
+            Log.d(TAG, listSensor.get(i).getName());
+        }*/
+         /*   if (!mServiceOn) {*/
+     /*   mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION, true);
+        //  mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        if (mAccelerometer == null) {
+            Log.d(TAG, "accelerometer is null");
+            mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
+        }
+        //   } else {
+        Log.d(TAG, "type of accel: " + mAccelerometer.isWakeUpSensor());
+        //   }
+        mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER, true);
+        //  mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        if (mAccelerometer == null) {
+            Log.d(TAG, "accelerometer is null");
+            mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        }
+        //   } else {
+        Log.d(TAG, "type of accel: " + mAccelerometer.isWakeUpSensor());
+    }*/
+
+    @Override
+    protected void onStop() {
+        if (mClient.isConnected()) {
+            mClient.disconnect();
+        }
+        super.onStop();
+    }
+
 
 }
