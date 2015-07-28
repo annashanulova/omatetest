@@ -86,6 +86,8 @@ public class MainActivity extends Activity {
         @Override
         public void onClick(View view) {
             Log.d(TAG, "clicked the button");
+            int status = GooglePlayServicesUtil.isGooglePlayServicesAvailable(mContext); //returns 0: success
+            Log.d(TAG, "status: " + status);
             if (mClient.isConnected()) {
                 Log.d(TAG, "disconnecting GoogleFit client");
                 mClient.disconnect();
@@ -93,7 +95,7 @@ public class MainActivity extends Activity {
                 Log.d(TAG, "connecting GoogleFit client");
                 mClient.connect();
             }
-            if (isMyServiceRunning(SensorService.class.getName())) {
+        /*    if (isMyServiceRunning(SensorService.class.getName())) {
                 Intent intent = new Intent(mContext, SensorService.class);
                 stopService(intent);
                 tvInfoText.setText(R.string.service_inactive);
@@ -108,7 +110,7 @@ public class MainActivity extends Activity {
                 }
                 tvInfoText.setText(R.string.service_running);
                 mServiceButton.setText(R.string.stop_service);
-            }
+            } */
         }
     };
 
@@ -297,6 +299,7 @@ public class MainActivity extends Activity {
                         }
                 )
                 .build();
+        Log.d(TAG, "build GoogFit client");
     }
 
     @Override
