@@ -16,7 +16,7 @@
         android:id="@+id/dump_button"
         android:layout_width="wrap_content"
         android:layout_height="100dp"
-        android:layout_below="@+id/info_text"
+        android:layout_below="@+id/step_count"
         android:text="@string/dump_data"/>
 
     <TextView
@@ -25,5 +25,13 @@
         android:layout_height="wrap_content"
         android:layout_below="@+id/start_service_button"
         android:text="@string/service_inactive" />
+
+    <TextView
+        android:id="@+id/step_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/info_text"
+        android:text="0"
+        android:textSize="36sp" />
 
 </RelativeLayout>

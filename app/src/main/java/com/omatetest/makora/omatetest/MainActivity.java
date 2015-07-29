@@ -3,43 +3,45 @@ package com.omatetest.makora.omatetest;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningServiceInfo;
-import android.app.AlarmManager;
-import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
-import android.hardware.Sensor;
-import android.hardware.SensorManager;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.HandlerThread;
-import android.support.v7.app.ActionBarActivity;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.common.Scopes;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Scope;
+import com.google.android.gms.common.api.Status;
 import com.google.android.gms.fitness.Fitness;
-import com.omatetest.makora.omatetest.services.SensorService;
+import com.google.android.gms.fitness.FitnessStatusCodes;
+import com.google.android.gms.fitness.data.DataPoint;
+import com.google.android.gms.fitness.data.DataSet;
+import com.google.android.gms.fitness.data.DataType;
+import com.google.android.gms.fitness.data.Field;
+import com.google.android.gms.fitness.data.Value;
+import com.google.android.gms.fitness.request.DataReadRequest;
+import com.google.android.gms.fitness.request.OnDataPointListener;
+import com.google.android.gms.fitness.request.SensorRequest;
+import com.google.android.gms.fitness.result.DataReadResult;
 import com.omatetest.makora.omatetest.utils.DBHelper;
 
-import net.sqlcipher.Cursor;
 import net.sqlcipher.database.SQLiteDatabase;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 
 public class MainActivity extends Activity {
@@ -55,7 +57,7 @@ public class MainActivity extends Activity {
     private SQLiteDatabase db;
     private WifiManager wifiManager;
     private ActivityManager activityManager;
-    private TextView tvInfoText;
+    private TextView tvInfoText, tvStepCount;
     private File mLogFile = null;
     private FileOutputStream mFileStream = null;
 
@@ -63,12 +65,16 @@ public class MainActivity extends Activity {
     private static final String AUTH_PENDING = "auth_state_pending";
     private boolean authInProgress = false;
     private static final int REQUEST_OAUTH = 57;
+    private Long recordingTimeStart = 1438160400000L;
+    private int numberOfSteps = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         tvInfoText = (TextView) findViewById(R.id.info_text);
+        tvStepCount = (TextView) findViewById(R.id.step_count);
+        tvStepCount.setText(String.valueOf(numberOfSteps));
         mServiceButton = (Button) findViewById(R.id.start_service_button);
         mServiceButton.setOnClickListener(mOnStartServiceListener);
         mDump = (Button) findViewById(R.id.dump_button);
@@ -86,16 +92,23 @@ public class MainActivity extends Activity {
         @Override
         public void onClick(View view) {
             Log.d(TAG, "clicked the button");
-            int status = GooglePlayServicesUtil.isGooglePlayServicesAvailable(mContext); //returns 0: success
-            Log.d(TAG, "status: " + status);
+            // int status = GooglePlayServicesUtil.isGooglePlayServicesAvailable(mContext); //returns 0: success
+            // Log.d(TAG, "status: " + status);
             if (mClient.isConnected()) {
                 Log.d(TAG, "disconnecting GoogleFit client");
+                stopGoogleFitRecording(DataType.TYPE_STEP_COUNT_DELTA);
+                // stopGoogleFitRecording(DataType.TYPE_DISTANCE_DELTA);
+                stopGoogleFitRecording(DataType.TYPE_LOCATION_SAMPLE);
+                // stopGoogleFitRecording(DataType.TYPE_SPEED);
+                removeGoogleFitSensorListener(DataType.TYPE_STEP_COUNT_DELTA);
+                removeGoogleFitSensorListener(DataType.TYPE_LOCATION_SAMPLE);
                 mClient.disconnect();
             } else {
                 Log.d(TAG, "connecting GoogleFit client");
+                recordingTimeStart = System.currentTimeMillis();
                 mClient.connect();
             }
-        /*    if (isMyServiceRunning(SensorService.class.getName())) {
+         /*   if (isMyServiceRunning(SensorService.class.getName())) {
                 Intent intent = new Intent(mContext, SensorService.class);
                 stopService(intent);
                 tvInfoText.setText(R.string.service_inactive);
@@ -110,7 +123,7 @@ public class MainActivity extends Activity {
                 }
                 tvInfoText.setText(R.string.service_running);
                 mServiceButton.setText(R.string.stop_service);
-            } */
+            }*/
         }
     };
 
@@ -118,7 +131,7 @@ public class MainActivity extends Activity {
 
         @Override
         public void onClick(View view) {
-            setupFolderAndFile();
+         /*   setupFolderAndFile();
             final int TIME_INDEX = 0;
             final int SENSOR_INDEX = 1;
             final int X_INDEX = 2;
@@ -158,18 +171,45 @@ public class MainActivity extends Activity {
                         e.printStackTrace();
                     }
                 } while (cAccel.moveToNext());
-            }
+            }*/
           /* Cursor cWifi = db.query("users_wifi_bssids",new String[]{"start","bssid","level"},null,null,null,null,null);
             if (cWifi.moveToFirst() ){
                 do {
                     Log.d(TAG,"start: " + cWifi.getLong(0) + " bssid: " + cWifi.getString(1) + " level: " + cWifi.getInt(2));
                 } while (cAccel.moveToNext());
             }*/
-            int duration = Toast.LENGTH_SHORT;
+        /*    int duration = Toast.LENGTH_SHORT;
             Toast toast = Toast.makeText(mContext, R.string.dump_success, duration);
-            toast.show();
+            toast.show();*/
+            dumpGoogleFitHistoryData(recordingTimeStart, System.currentTimeMillis());
         }
     };
+
+    private void dumpGoogleFitHistoryData(Long timeStart, Long timeEnd) {
+        Log.d(TAG, "dumping GoogleFitHistory data");
+        DataReadRequest readRequest = new DataReadRequest.Builder()
+                .setTimeRange(timeStart, timeEnd, TimeUnit.MILLISECONDS)
+                .read(DataType.TYPE_STEP_COUNT_DELTA)
+                .read(DataType.TYPE_DISTANCE_DELTA)
+                .read(DataType.TYPE_LOCATION_SAMPLE)
+                .read(DataType.TYPE_SPEED)
+                .build();
+        Fitness.HistoryApi.readData(mClient, readRequest).setResultCallback(new ResultCallback<DataReadResult>() {
+            @Override
+            public void onResult(DataReadResult dataReadResult) {
+                if (dataReadResult != null) {
+                    Log.d(TAG, dataReadResult.getStatus().toString());
+                    List<DataSet> dataSetList = dataReadResult.getDataSets();
+                    for (DataSet ds : dataSetList) {
+                        Log.d(TAG, ds.getDataType().getName());
+                        Log.d(TAG, "" + ds.getDataPoints().size());
+                    }
+                } else {
+                    Log.d(TAG, "dataReadResult is null");
+                }
+            }
+        });
+    }
 
     private boolean isMyServiceRunning(String serviceClassName) {
 
@@ -229,6 +269,7 @@ public class MainActivity extends Activity {
         }
     }
 
+
     /**
      * SOURCE: https://developers.google.com/fit/android/get-started
      * Build a {@link GoogleApiClient} that will authenticate the user and allow the application
@@ -254,6 +295,13 @@ public class MainActivity extends Activity {
                             @Override
                             public void onConnected(Bundle bundle) {
                                 //register relevant listeners
+                                Log.d(TAG, "GoogleFit connected");
+                                startGoogleFitRecording(DataType.TYPE_STEP_COUNT_DELTA);
+                                //    startGoogleFitRecording(DataType.TYPE_DISTANCE_DELTA);
+                                startGoogleFitRecording(DataType.TYPE_LOCATION_SAMPLE);
+                                //     startGoogleFitRecording(DataType.TYPE_SPEED);
+                                addGoogleFitSensorListener(DataType.TYPE_STEP_COUNT_DELTA);
+                                addGoogleFitSensorListener(DataType.TYPE_LOCATION_SAMPLE);
                             }
 
                             @Override
@@ -302,6 +350,108 @@ public class MainActivity extends Activity {
         Log.d(TAG, "build GoogFit client");
     }
 
+    private void startGoogleFitRecording(DataType dataType) {
+        Log.d(TAG, "starting " + dataType.getName() + " recoding");
+        Fitness.RecordingApi.subscribe(mClient, dataType)
+                .setResultCallback(new ResultCallback<Status>() {
+                    @Override
+                    public void onResult(Status status) {
+                        if (status.isSuccess()) {
+                            if (status.getStatusCode()
+                                    == FitnessStatusCodes.SUCCESS_ALREADY_SUBSCRIBED) {
+                                Log.i(TAG, "Existing subscription for activity detected.");
+                            } else {
+                                Log.i(TAG, "Successfully subscribed!");
+                            }
+                        } else {
+                            Log.i(TAG, "There was a problem subscribing.");
+                        }
+                    }
+                });
+    }
+
+    private void stopGoogleFitRecording(DataType dataType) {
+        Log.d(TAG, "stopping " + dataType.getName() + " recoding");
+        Fitness.RecordingApi.unsubscribe(mClient, dataType).
+                setResultCallback(new ResultCallback<Status>() {
+                                      @Override
+                                      public void onResult(Status status) {
+                                          if (status.isSuccess()) {
+                                              Log.i(TAG, "Successfully unsubscribed for data type " + status.toString());
+                                          } else {
+                                              // Subscription not removed
+                                              Log.i(TAG, "Failed to unsubscribe for data type " + status.toString());
+                                          }
+                                      }
+                                  }
+
+                );
+    }
+
+    OnDataPointListener mFitnessDataListener = new OnDataPointListener() {
+        @Override
+        public void onDataPoint(DataPoint dataPoint) {
+            Log.d(TAG, "received data: " + dataPoint.getDataType().getName());
+            DataType dataType = dataPoint.getDataType();
+            for (Field field : dataPoint.getDataType().getFields()) {
+                Value val = dataPoint.getValue(field);
+                Log.i(TAG, "Detected DataPoint field: " + field.getName());
+                Log.i(TAG, "Detected DataPoint value: " + val);
+                if (dataType.getName().equals("com.google.step_count.delta")) {
+                    numberOfSteps += val.asInt();
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            tvStepCount.setText(String.valueOf(numberOfSteps));
+                        }
+                    });
+                    Log.d(TAG, "new number of steps: " + numberOfSteps);
+                }
+            }
+        }
+    };
+
+    private void addGoogleFitSensorListener(DataType dataType) {
+        Log.d(TAG, "adding listener to: " + dataType.getName());
+        Fitness.SensorsApi.add(
+                mClient,
+                new SensorRequest.Builder()
+                        .setDataType(dataType) // Can't be omitted.
+                        .setSamplingRate(500, TimeUnit.MILLISECONDS)
+                        .build(),
+                mFitnessDataListener)
+                .setResultCallback(new ResultCallback<Status>() {
+                    @Override
+                    public void onResult(Status status) {
+                        if (status.isSuccess()) {
+                            Log.i(TAG, "Listener registered!");
+                        } else {
+                            Log.i(TAG, "Listener not registered.");
+                        }
+                    }
+                });
+    }
+
+    private void removeGoogleFitSensorListener(DataType dataType) {
+
+        Log.d(TAG, "removing listener to: " + dataType.getName());
+
+        Fitness.SensorsApi.remove(mClient, mFitnessDataListener)
+                .setResultCallback(new ResultCallback<Status>() {
+                                       @Override
+                                       public void onResult(Status status) {
+                                           if (status.isSuccess()) {
+                                               Log.i(TAG, "Listener was removed!");
+                                           } else {
+                                               Log.i(TAG, "Listener was not removed.");
+                                           }
+                                       }
+                                   }
+
+                );
+    }
+
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == REQUEST_OAUTH) {
@@ -320,6 +470,7 @@ public class MainActivity extends Activity {
         super.onSaveInstanceState(outState);
         outState.putBoolean(AUTH_PENDING, authInProgress);
     }
+
 
    /* private void checkTypeOfAccel() {
         SensorManager mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);

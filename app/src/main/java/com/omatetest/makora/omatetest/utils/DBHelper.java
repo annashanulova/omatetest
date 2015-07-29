@@ -33,6 +33,8 @@ public class DBHelper extends SQLiteOpenHelper {
                     "`bssid` char(65) NOT NULL," +
                     "`level` int NOT NULL, " +
                     "`uploaded` BOOLEAN DEFAULT 0)"
+        /*    "CREATE TABLE IF NOT EXISTS `google_fit_steps` (" +
+                    "``"*/
     };
 
     public static DBHelper getInstance(Context context) {
