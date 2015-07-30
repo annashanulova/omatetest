@@ -57,6 +57,11 @@ public class DBHelper extends SQLiteOpenHelper {
                     "`accuracy` float NOT NULL , " +
                     "`altitude` float DEFAULT NULL , " +
                     "`uploaded` BOOLEAN DEFAULT 0)",
+            "CREATE TABLE IF NOT EXISTS `custom_timestamps` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "`timestamp` long NOT NULL," +
+                    "`description` text NOT NULL," +
+                    "`uploaded` BOOLEAN DEFAULT 0)"
     };
 
     public static DBHelper getInstance(Context context) {

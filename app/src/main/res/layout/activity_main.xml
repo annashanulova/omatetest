@@ -14,7 +14,7 @@
 
     <Button
         android:id="@+id/dump_button"
-        android:layout_width="wrap_content"
+        android:layout_width="140dp"
         android:layout_height="80dp"
         android:layout_below="@+id/info_text"
         android:text="@string/dump_data"/>
@@ -28,7 +28,7 @@
 
     <Button
         android:id="@+id/scan_wifi"
-        android:layout_width="wrap_content"
+        android:layout_width="140dp"
         android:layout_height="80dp"
         android:layout_below="@+id/dump_button"
         android:text="@string/scan_wifi" />
