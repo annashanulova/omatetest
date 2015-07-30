@@ -3,9 +3,14 @@ package com.omatetest.makora.omatetest;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningServiceInfo;
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.IntentSender;
+import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Environment;
@@ -13,6 +18,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
@@ -27,13 +33,14 @@ import com.google.android.gms.fitness.data.DataPoint;
 import com.google.android.gms.fitness.data.DataSet;
 import com.google.android.gms.fitness.data.DataType;
 import com.google.android.gms.fitness.data.Field;
-import com.google.android.gms.fitness.data.Value;
 import com.google.android.gms.fitness.request.DataReadRequest;
 import com.google.android.gms.fitness.request.OnDataPointListener;
 import com.google.android.gms.fitness.request.SensorRequest;
 import com.google.android.gms.fitness.result.DataReadResult;
+import com.omatetest.makora.omatetest.services.SensorService;
 import com.omatetest.makora.omatetest.utils.DBHelper;
 
+import net.sqlcipher.Cursor;
 import net.sqlcipher.database.SQLiteDatabase;
 
 import java.io.File;
@@ -50,14 +57,14 @@ public class MainActivity extends Activity {
 
     private final String APP_LOG_FOLDER_NAME = "mySensorListener";
 
-    private Button mDump, mServiceButton;
+    private Button mDump, mServiceButton, mWifiScanButton;
     private Boolean mServiceOn = false;
     private Context mContext;
     private DBHelper dbHelper;
     private SQLiteDatabase db;
     private WifiManager wifiManager;
     private ActivityManager activityManager;
-    private TextView tvInfoText, tvStepCount;
+    private TextView tvInfoText;
     private File mLogFile = null;
     private FileOutputStream mFileStream = null;
 
@@ -73,8 +80,8 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         tvInfoText = (TextView) findViewById(R.id.info_text);
-        tvStepCount = (TextView) findViewById(R.id.step_count);
-        tvStepCount.setText(String.valueOf(numberOfSteps));
+        mWifiScanButton = (Button) findViewById(R.id.scan_wifi);
+        mWifiScanButton.setOnClickListener(onWifiScanButtonListener);
         mServiceButton = (Button) findViewById(R.id.start_service_button);
         mServiceButton.setOnClickListener(mOnStartServiceListener);
         mDump = (Button) findViewById(R.id.dump_button);
@@ -82,6 +89,7 @@ public class MainActivity extends Activity {
         mContext = getApplicationContext();
         dbHelper = DBHelper.getInstance(mContext);
         db = DBHelper.getWritableInstance(mContext);
+        wifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
         if (savedInstanceState != null) {
             authInProgress = savedInstanceState.getBoolean(AUTH_PENDING);
         }
@@ -96,19 +104,17 @@ public class MainActivity extends Activity {
             // Log.d(TAG, "status: " + status);
             if (mClient.isConnected()) {
                 Log.d(TAG, "disconnecting GoogleFit client");
-                stopGoogleFitRecording(DataType.TYPE_STEP_COUNT_DELTA);
-                // stopGoogleFitRecording(DataType.TYPE_DISTANCE_DELTA);
-                stopGoogleFitRecording(DataType.TYPE_LOCATION_SAMPLE);
-                // stopGoogleFitRecording(DataType.TYPE_SPEED);
                 removeGoogleFitSensorListener(DataType.TYPE_STEP_COUNT_DELTA);
                 removeGoogleFitSensorListener(DataType.TYPE_LOCATION_SAMPLE);
+                removeGoogleFitSensorListener(DataType.TYPE_DISTANCE_DELTA);
+                removeGoogleFitSensorListener(DataType.TYPE_SPEED);
                 mClient.disconnect();
             } else {
                 Log.d(TAG, "connecting GoogleFit client");
                 recordingTimeStart = System.currentTimeMillis();
                 mClient.connect();
             }
-         /*   if (isMyServiceRunning(SensorService.class.getName())) {
+            if (isMyServiceRunning(SensorService.class.getName())) {
                 Intent intent = new Intent(mContext, SensorService.class);
                 stopService(intent);
                 tvInfoText.setText(R.string.service_inactive);
@@ -123,7 +129,7 @@ public class MainActivity extends Activity {
                 }
                 tvInfoText.setText(R.string.service_running);
                 mServiceButton.setText(R.string.stop_service);
-            }*/
+            }
         }
     };
 
@@ -131,59 +137,104 @@ public class MainActivity extends Activity {
 
         @Override
         public void onClick(View view) {
-         /*   setupFolderAndFile();
-            final int TIME_INDEX = 0;
-            final int SENSOR_INDEX = 1;
-            final int X_INDEX = 2;
-            final int Y_INDEX = 3;
-            final int Z_INDEX = 4;
-            Cursor cAccel = db.query("users_motion_raw", new String[]{"start", "sensor", "x", "y", "z"}, "start > ?", new String[]{"1433306459000"}, null, null, null);
-            int count = 0;
-            int currentCount = 0;
-            if (cAccel.moveToFirst()) {
-                // Log.d(TAG, "start: " + cAccel.getLong(0) + " sensor: " + cAccel.getInt(1) + " x: " + cAccel.getFloat(2) + " y: " + cAccel.getFloat(3) + " z: " + cAccel.getFloat(4));
-                String header = "Timestamp (millisecs)" + "\t" + "Sensor" + "\t" + "x" + "\t" + "y" + "\t" + "z" + "\r\n";
-                Log.d(TAG, "data found!");
-                Log.d(TAG, header);
-                try {
-                    mFileStream.write(header.getBytes());
-                } catch (IOException e) {
-                    Log.d(TAG, "Problem writing header to file");
-                    e.printStackTrace();
-                }
-                do {
-                    currentCount++;
-                    if (currentCount == (count + 10)) {
-                        count = currentCount;
-                        Log.d(TAG, "data points: " + count);
-                    }
-                    String formatted = String.valueOf(cAccel.getLong(TIME_INDEX))
-                            + "\t" + cAccel.getString(SENSOR_INDEX)
-                            + "\t" + String.valueOf(cAccel.getFloat(X_INDEX))
-                            + "\t" + String.valueOf(cAccel.getFloat(Y_INDEX))
-                            + "\t" + String.valueOf(cAccel.getFloat(Z_INDEX))
-                            + "\r\n";
-                    // Log.d(TAG, formatted);
-                    try {
-                        mFileStream.write(formatted.getBytes());
-                    } catch (IOException e) {
-                        Log.d(TAG, "Problem writing to file!");
-                        e.printStackTrace();
-                    }
-                } while (cAccel.moveToNext());
-            }*/
-          /* Cursor cWifi = db.query("users_wifi_bssids",new String[]{"start","bssid","level"},null,null,null,null,null);
-            if (cWifi.moveToFirst() ){
-                do {
-                    Log.d(TAG,"start: " + cWifi.getLong(0) + " bssid: " + cWifi.getString(1) + " level: " + cWifi.getInt(2));
-                } while (cAccel.moveToNext());
-            }*/
-        /*    int duration = Toast.LENGTH_SHORT;
-            Toast toast = Toast.makeText(mContext, R.string.dump_success, duration);
-            toast.show();*/
-            dumpGoogleFitHistoryData(recordingTimeStart, System.currentTimeMillis());
+            setupFolderAndFile("google_fit_steps");
+            dumpDBTable("google_fit_steps");
+            setupFolderAndFile("google_fit_distance");
+            dumpDBTable("google_fit_distance");
+            setupFolderAndFile("google_fit_location");
+            dumpDBTable("google_fit_location");
+            setupFolderAndFile("google_fit_speed");
+            dumpDBTable("google_fit_speed");
+            setupFolderAndFile("users_sensors_raw");
+            dumpDBTable("users_sensors_raw");
+            Toast toast = Toast.makeText(mContext, R.string.dump_success, Toast.LENGTH_SHORT);
+            toast.show();
         }
     };
+
+    private void dumpDBTable(String table_name) {
+        Cursor tableC = db.query(table_name, null, null, null, null, null, null);
+        String[] columnNames = tableC.getColumnNames();
+        String header = new String("");
+        for (String name : columnNames) {
+            header += name;
+            header += ",";
+        }
+        header = header.substring(0, header.length() - 1);
+        header += "\n";
+        try {
+            mFileStream.write(header.getBytes());
+        } catch (IOException e) {
+            Log.d(TAG, "Problem writing header to file");
+            e.printStackTrace();
+        }
+        if (table_name.equals("google_fit_steps")) {
+            if (tableC.moveToFirst()) {
+                do {
+                    String row = String.valueOf(tableC.getLong(1)) + "," + String.valueOf(tableC.getInt(2)) + "\n";      //1: timestamp 2:steps
+                    try {
+                        mFileStream.write(row.getBytes());
+                    } catch (IOException e) {
+                        Log.d(TAG, "Problem writing row to file");
+                        e.printStackTrace();
+                    }
+                } while (tableC.moveToNext());
+            }
+        } else if (table_name.equals("google_fit_distance")) {
+            if (tableC.moveToFirst()) {
+                do {
+                    String row = String.valueOf(tableC.getLong(1)) + "," + String.valueOf(tableC.getFloat(2)) + "\n";      //1: timestamp 2:distance
+                    try {
+                        mFileStream.write(row.getBytes());
+                    } catch (IOException e) {
+                        Log.d(TAG, "Problem writing row to file");
+                        e.printStackTrace();
+                    }
+                } while (tableC.moveToNext());
+            }
+        } else if (table_name.equals("google_fit_speed")) {
+            if (tableC.moveToFirst()) {
+                do {
+                    String row = String.valueOf(tableC.getLong(1)) + "," + String.valueOf(tableC.getFloat(2)) + "\n";      //1: timestamp 2:speed
+                    try {
+                        mFileStream.write(row.getBytes());
+                    } catch (IOException e) {
+                        Log.d(TAG, "Problem writing row to file");
+                        e.printStackTrace();
+                    }
+                } while (tableC.moveToNext());
+            }
+        } else if (table_name.equals("google_fit_location")) {
+            if (tableC.moveToFirst()) {
+                do {
+                    String row = String.valueOf(tableC.getLong(1)) + "," + String.valueOf(tableC.getFloat(2)) + "," +
+                            String.valueOf(tableC.getFloat(3)) + "," + String.valueOf(tableC.getFloat(4)) + "," +
+                            String.valueOf(tableC.getFloat(5)) + "\n";      //1: timestamp 2:lat 3:lon 4:accuracy 5:altitude
+                    try {
+                        mFileStream.write(row.getBytes());
+                    } catch (IOException e) {
+                        Log.d(TAG, "Problem writing row to file");
+                        e.printStackTrace();
+                    }
+                } while (tableC.moveToNext());
+            }
+        } else if (table_name.equals("users_sensors_raw")) {
+            if (tableC.moveToFirst()) {
+                do {
+                    String row = String.valueOf(tableC.getInt(1)) + "," + String.valueOf(tableC.getLong(2)) + "," +
+                            String.valueOf(tableC.getFloat(3)) + "," + String.valueOf(tableC.getFloat(4)) + "," +
+                            String.valueOf(tableC.getFloat(5)) + "\n";      //1: sensor 2:timestamp 3:x 4:y 5:z
+                    try {
+                        mFileStream.write(row.getBytes());
+                    } catch (IOException e) {
+                        Log.d(TAG, "Problem writing row to file");
+                        e.printStackTrace();
+                    }
+                } while (tableC.moveToNext());
+            }
+        }
+        Log.d(TAG, "dumped table: " + table_name);
+    }
 
     private void dumpGoogleFitHistoryData(Long timeStart, Long timeEnd) {
         Log.d(TAG, "dumping GoogleFitHistory data");
@@ -230,7 +281,7 @@ public class MainActivity extends Activity {
      * Sets up folder and file to log the file on it
      * http://pastebin.com/QuHd0LNU
      */
-    private void setupFolderAndFile() {
+    private void setupFolderAndFile(String table_name) {
 
         Log.d(TAG, "setting up log file");
         File folder = new File(Environment.getExternalStorageDirectory()
@@ -247,8 +298,7 @@ public class MainActivity extends Activity {
 
         mLogFile = new File(Environment.getExternalStorageDirectory().toString()
                 + File.separator + APP_LOG_FOLDER_NAME
-                + File.separator + "log_dump"
-                + File.separator + System.currentTimeMillis());
+                + File.separator + "log_" + table_name + "_" + System.currentTimeMillis());
 
         if (!mLogFile.exists()) {
             try {
@@ -259,6 +309,7 @@ public class MainActivity extends Activity {
             }
         }
 
+        mFileStream = null;
         if (mFileStream == null) {
             try {
                 mFileStream = new FileOutputStream(mLogFile, true);
@@ -296,12 +347,14 @@ public class MainActivity extends Activity {
                             public void onConnected(Bundle bundle) {
                                 //register relevant listeners
                                 Log.d(TAG, "GoogleFit connected");
-                                startGoogleFitRecording(DataType.TYPE_STEP_COUNT_DELTA);
+                                //startGoogleFitRecording(DataType.TYPE_STEP_COUNT_DELTA);
                                 //    startGoogleFitRecording(DataType.TYPE_DISTANCE_DELTA);
-                                startGoogleFitRecording(DataType.TYPE_LOCATION_SAMPLE);
+                                //startGoogleFitRecording(DataType.TYPE_LOCATION_SAMPLE);
                                 //     startGoogleFitRecording(DataType.TYPE_SPEED);
                                 addGoogleFitSensorListener(DataType.TYPE_STEP_COUNT_DELTA);
                                 addGoogleFitSensorListener(DataType.TYPE_LOCATION_SAMPLE);
+                                addGoogleFitSensorListener(DataType.TYPE_DISTANCE_DELTA);
+                                addGoogleFitSensorListener(DataType.TYPE_SPEED);
                             }
 
                             @Override
@@ -393,20 +446,44 @@ public class MainActivity extends Activity {
         public void onDataPoint(DataPoint dataPoint) {
             Log.d(TAG, "received data: " + dataPoint.getDataType().getName());
             DataType dataType = dataPoint.getDataType();
-            for (Field field : dataPoint.getDataType().getFields()) {
-                Value val = dataPoint.getValue(field);
-                Log.i(TAG, "Detected DataPoint field: " + field.getName());
-                Log.i(TAG, "Detected DataPoint value: " + val);
-                if (dataType.getName().equals("com.google.step_count.delta")) {
-                    numberOfSteps += val.asInt();
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            tvStepCount.setText(String.valueOf(numberOfSteps));
-                        }
-                    });
-                    Log.d(TAG, "new number of steps: " + numberOfSteps);
+            ContentValues values = new ContentValues();
+            values.put("timestamp", dataPoint.getTimestamp(TimeUnit.MILLISECONDS));
+            if (dataType.getName().equals("com.google.step_count.delta")) {
+                for (Field field : dataPoint.getDataType().getFields()) {
+                    if (field.getName().equals("steps")) {
+                        values.put("stepsdelta", dataPoint.getValue(field).asInt());
+                    }
                 }
+                db.insertOrThrow("google_fit_steps", null, values);
+            } else if (dataType.getName().equals("com.google.distance.delta")) {
+                for (Field field : dataPoint.getDataType().getFields()) {
+                    if (field.getName().equals("distance")) {
+                        values.put("distancedelta", dataPoint.getValue(field).asFloat());
+                    }
+                }
+                db.insertOrThrow("google_fit_distance", null, values);
+            } else if (dataType.getName().equals("com.google.speed")) {
+                for (Field field : dataPoint.getDataType().getFields()) {
+                    if (field.getName().equals("speed")) {
+                        values.put("speedinstant", dataPoint.getValue(field).asFloat());
+                    }
+                }
+                db.insertOrThrow("google_fit_speed", null, values);
+            } else if (dataType.getName().equals("com.google.location.sample")) {
+                for (Field field : dataPoint.getDataType().getFields()) {
+                    if (field.getName().equals("latitude")) {
+                        values.put("lat", dataPoint.getValue(field).asFloat());
+                    } else if (field.getName().equals("longitude")) {
+                        values.put("lon", dataPoint.getValue(field).asFloat());
+                    } else if (field.getName().equals("accuracy")) {
+                        values.put("accuracy", dataPoint.getValue(field).asFloat());
+                    } else if (field.getName().equals("altitude")) {
+                        if (!(dataPoint.getValue(field).toString().equals("unset"))) {
+                            values.put("altitude", dataPoint.getValue(field).asFloat());
+                        }
+                    }
+                }
+                db.insertOrThrow("google_fit_location", null, values);
             }
         }
     };
@@ -465,44 +542,38 @@ public class MainActivity extends Activity {
         }
     }
 
+
+    private View.OnClickListener onWifiScanButtonListener = new View.OnClickListener() {
+        @Override
+        public void onClick(View view) {
+            wifiManager.startScan();
+        }
+    };
+
+    private BroadcastReceiver wifiScanFinishedReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context arg0, Intent arg1) {
+            WifiManager wifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
+            List<ScanResult> wifiResults = wifiManager.getScanResults();
+            Long timestamp = System.currentTimeMillis();
+            for (ScanResult result : wifiResults) {
+                ContentValues values = new ContentValues();
+                values.put("timestamp", timestamp);
+                values.put("bssid", result.BSSID);
+                values.put("frequency", result.frequency);
+                values.put("level", result.level);
+                Log.d(TAG, "inserting " + values.toString() + "into DB");
+                db.insertOrThrow("wifi_scan", null, values);
+            }
+        }
+    };
+
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putBoolean(AUTH_PENDING, authInProgress);
     }
 
-
-   /* private void checkTypeOfAccel() {
-        SensorManager mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        HandlerThread mAccelThread = null;
-        Sensor mAccelerometer = null;
-        List<Sensor> listSensor
-                = mSensorManager.getSensorList(Sensor.TYPE_ALL);
-
-        List<String> listSensorType = new ArrayList<String>();
-        for (int i = 0; i < listSensor.size(); i++) {
-            // listSensorType.add(listSensor.get(i).getName());
-            Log.d(TAG, listSensor.get(i).getName());
-        }*/
-         /*   if (!mServiceOn) {*/
-     /*   mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION, true);
-        //  mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        if (mAccelerometer == null) {
-            Log.d(TAG, "accelerometer is null");
-            mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
-        }
-        //   } else {
-        Log.d(TAG, "type of accel: " + mAccelerometer.isWakeUpSensor());
-        //   }
-        mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER, true);
-        //  mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        if (mAccelerometer == null) {
-            Log.d(TAG, "accelerometer is null");
-            mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        }
-        //   } else {
-        Log.d(TAG, "type of accel: " + mAccelerometer.isWakeUpSensor());
-    }*/
 
     @Override
     protected void onStop() {
@@ -512,5 +583,17 @@ public class MainActivity extends Activity {
         super.onStop();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        IntentFilter scanFilter = new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
+        this.registerReceiver(wifiScanFinishedReceiver, scanFilter);
+    }
+
+    @Override
+    protected void onPause() {
+        this.unregisterReceiver(wifiScanFinishedReceiver);
+        super.onPause();
+    }
 
 }

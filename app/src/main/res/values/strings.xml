@@ -10,4 +10,5 @@
     <string name="sensor_service_running">Sensor service is running</string>
     <string name="sensor_service_stopped">Sensor service stopped</string>
     <string name="omatetest_notification">Omatetest Service</string>
+    <string name="scan_wifi">Scan WIFI</string>
 </resources>

@@ -19,7 +19,7 @@ public class DBHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "omatetestDB";
 
     private static final String INI_CREATE_COMMANDS[] = {
-            "CREATE TABLE IF NOT EXISTS `users_motion_raw` (" +
+            "CREATE TABLE IF NOT EXISTS `users_sensors_raw` (" +
                     "`id` INTEGER PRIMARY KEY AUTOINCREMENT," +
                     "`sensor` int NOT NULL," +
                     "`start` long NOT NULL," +
@@ -27,14 +27,36 @@ public class DBHelper extends SQLiteOpenHelper {
                     "`y` double NOT NULL, " +
                     "`z` double NOT NULL, " +
                     "`uploaded` BOOLEAN DEFAULT 0)",
-            "CREATE TABLE IF NOT EXISTS `users_wifi_bssids` (" +
+            "CREATE TABLE IF NOT EXISTS `wifi_scan` (" +
                     "`id` INTEGER PRIMARY KEY AUTOINCREMENT," +
-                    "`start` long NOT NULL," +
+                    "`timestamp` long NOT NULL," +
                     "`bssid` char(65) NOT NULL," +
-                    "`level` int NOT NULL, " +
-                    "`uploaded` BOOLEAN DEFAULT 0)"
-        /*    "CREATE TABLE IF NOT EXISTS `google_fit_steps` (" +
-                    "``"*/
+                    "`frequency` float NOT NULL," +
+                    "`level` flat NOT NULL, " +
+                    "`uploaded` BOOLEAN DEFAULT 0)",
+            "CREATE TABLE IF NOT EXISTS `google_fit_steps` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "`timestamp` long NOT NULL, " +
+                    "`stepsdelta` int NOT NULL , " +
+                    "`uploaded` BOOLEAN DEFAULT 0)",
+            "CREATE TABLE IF NOT EXISTS `google_fit_speed` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "`timestamp` long NOT NULL, " +
+                    "`speedinstant` float NOT NULL , " +
+                    "`uploaded` BOOLEAN DEFAULT 0)",
+            "CREATE TABLE IF NOT EXISTS `google_fit_distance` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "`timestamp` long NOT NULL, " +
+                    "`distancedelta` float NOT NULL , " +
+                    "`uploaded` BOOLEAN DEFAULT 0)",
+            "CREATE TABLE IF NOT EXISTS `google_fit_location` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "`timestamp` long NOT NULL, " +
+                    "`lat` float NOT NULL , " +
+                    "`lon` float NOT NULL , " +
+                    "`accuracy` float NOT NULL , " +
+                    "`altitude` float DEFAULT NULL , " +
+                    "`uploaded` BOOLEAN DEFAULT 0)",
     };
 
     public static DBHelper getInstance(Context context) {

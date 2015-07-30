@@ -21,6 +21,7 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
+import android.view.View;
 
 import com.omatetest.makora.omatetest.MainActivity;
 import com.omatetest.makora.omatetest.R;
@@ -40,10 +41,14 @@ public class SensorService extends Service {
     private Sensor mGravitySensor;
     private Sensor mLinearAccelerometer;
     private Sensor mLocationSensor;
+    private Sensor mGyroscope;
+    private Sensor mGeomagneticRotation;
+    private Sensor mMagneticField;
+    private Sensor mRotationSensor;
     private DBHelper dbHelper;
     private SQLiteDatabase db;
     //   private WifiManager wifiManager;
-    private HandlerThread mAccelThread, mGravityThread, mLinearThread, mGPSThread;
+    private HandlerThread mAccelThread, mGravityThread, mLinearThread, mGPSThread, mGyroscopeThread, mGeomagneticRotThread, mMagneticThread, mRotationThread;
     private NotificationManager mNotificationMngr;
     private AlarmManager alarmManager;
     private LocationManager locationManager;
@@ -60,7 +65,7 @@ public class SensorService extends Service {
             values.put("y", eventValues[1]);
             values.put("z", eventValues[2]);
             Log.d(TAG, "inserting into DB: " + values.getAsLong("start") + " " + values.getAsInteger("sensor"));
-            db.insertOrThrow("users_motion_raw", null, values);
+            db.insertOrThrow("users_sensors_raw", null, values);
         }
 
         @Override
@@ -96,7 +101,7 @@ public class SensorService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startAlarms();
+        //  startAlarms();
         registerSensorListeners();
         //open DB
         dbHelper = DBHelper.getInstance(this);
@@ -126,7 +131,7 @@ public class SensorService extends Service {
         //register listeners
         mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         //register accelerometer
-       /* mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+      /*  mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         mAccelThread = new HandlerThread("AccelerometerListener");
         mAccelThread.start();
         Handler accelHandler = new Handler(mAccelThread.getLooper());
@@ -143,8 +148,30 @@ public class SensorService extends Service {
         mLinearThread.start();
         Handler linearHandler = new Handler(mLinearThread.getLooper());
         mSensorManager.registerListener(mSensorListener, mLinearAccelerometer, ACC_DELAY, linearHandler);
-        //wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
-        locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
+        //register gyroscope
+        mGyroscope = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+        mGyroscopeThread = new HandlerThread("GyroscopeListener");
+        mGyroscopeThread.start();
+        Handler gyroscopeHandler = new Handler(mGyroscopeThread.getLooper());
+        mSensorManager.registerListener(mSensorListener, mGyroscope, ACC_DELAY, gyroscopeHandler);
+        //register magnetic field sensor
+        mMagneticField = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+        mMagneticThread = new HandlerThread("MagneticFieldListener");
+        mMagneticThread.start();
+        Handler magneticHandler = new Handler(mMagneticThread.getLooper());
+        mSensorManager.registerListener(mSensorListener, mMagneticField, ACC_DELAY, magneticHandler);
+        //register rotation sensor
+        mRotationSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+        mRotationThread = new HandlerThread("RotationListener");
+        mRotationThread.start();
+        Handler rotationHandler = new Handler(mRotationThread.getLooper());
+        mSensorManager.registerListener(mSensorListener, mRotationSensor, ACC_DELAY, rotationHandler);
+        //register geomagnetic rotation sensor
+        mGeomagneticRotation = mSensorManager.getDefaultSensor(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR);
+        mGeomagneticRotThread = new HandlerThread("GeomagneticRotationListener");
+        mGeomagneticRotThread.start();
+        Handler rotHandler = new Handler(mGeomagneticRotThread.getLooper());
+        mSensorManager.registerListener(mSensorListener, mGeomagneticRotation, ACC_DELAY, rotHandler);
     }
 
     @Override
@@ -153,14 +180,30 @@ public class SensorService extends Service {
      /*   mSensorManager.unregisterListener(mSensorListener, mAccelerometer);
         if (mAccelThread.isAlive()) {
             mAccelThread.quit();
-        }
+        }*/
         mSensorManager.unregisterListener(mSensorListener, mGravitySensor);
         if (mGravityThread.isAlive()) {
             mGravityThread.quit();
-        }*/
+        }
         mSensorManager.unregisterListener(mSensorListener, mLinearAccelerometer);
         if (mLinearThread.isAlive()) {
             mLinearThread.quit();
+        }
+        mSensorManager.unregisterListener(mSensorListener, mGyroscope);
+        if (mGyroscopeThread.isAlive()) {
+            mGyroscopeThread.quit();
+        }
+        mSensorManager.unregisterListener(mSensorListener, mRotationSensor);
+        if (mRotationThread.isAlive()) {
+            mRotationThread.quit();
+        }
+        mSensorManager.unregisterListener(mSensorListener, mGeomagneticRotation);
+        if (mGeomagneticRotThread.isAlive()) {
+            mGeomagneticRotThread.quit();
+        }
+        mSensorManager.unregisterListener(mSensorListener, mMagneticField);
+        if (mMagneticThread.isAlive()) {
+            mMagneticThread.quit();
         }
         //  mNotificationMngr.cancel(NOTIFICATION_ID);
         super.onDestroy();
