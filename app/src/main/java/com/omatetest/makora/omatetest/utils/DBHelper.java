@@ -32,7 +32,7 @@ public class DBHelper extends SQLiteOpenHelper {
                     "`timestamp` long NOT NULL," +
                     "`bssid` char(65) NOT NULL," +
                     "`frequency` float NOT NULL," +
-                    "`level` flat NOT NULL, " +
+                    "`level` float NOT NULL, " +
                     "`uploaded` BOOLEAN DEFAULT 0)",
             "CREATE TABLE IF NOT EXISTS `google_fit_steps` (" +
                     "`id` INTEGER PRIMARY KEY AUTOINCREMENT, " +

@@ -32,7 +32,7 @@ import net.sqlcipher.database.SQLiteDatabase;
 public class SensorService extends Service {
 
     private static final String TAG = "Watch: SensorService";
-    private final int ACC_DELAY = 20000;
+    private final int ACC_DELAY = 20000;  //50Hz
     private final int NOTIFICATION_ID = 42;
     private final int GPS_START = 42;
     private final int GPS_STOP = 43;
@@ -64,7 +64,10 @@ public class SensorService extends Service {
             values.put("x", eventValues[0]);
             values.put("y", eventValues[1]);
             values.put("z", eventValues[2]);
-            Log.d(TAG, "inserting into DB: " + values.getAsLong("start") + " " + values.getAsInteger("sensor"));
+            Log.d(TAG, "inserting into DB: " + values.toString());
+            if (db == null) {
+                db = DBHelper.getWritableInstance(mContext);
+            }
             db.insertOrThrow("users_sensors_raw", null, values);
         }
 
@@ -101,12 +104,12 @@ public class SensorService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        //  startAlarms();
-        registerSensorListeners();
         //open DB
         dbHelper = DBHelper.getInstance(this);
         db = DBHelper.getWritableInstance(this);
         mContext = this.getApplicationContext();
+        //  startAlarms();
+        registerSensorListeners();
         Log.d(TAG, "starting service");
         return START_STICKY;
     }
@@ -180,11 +183,11 @@ public class SensorService extends Service {
      /*   mSensorManager.unregisterListener(mSensorListener, mAccelerometer);
         if (mAccelThread.isAlive()) {
             mAccelThread.quit();
-        }*/
+        }
         mSensorManager.unregisterListener(mSensorListener, mGravitySensor);
         if (mGravityThread.isAlive()) {
             mGravityThread.quit();
-        }
+        }*/
         mSensorManager.unregisterListener(mSensorListener, mLinearAccelerometer);
         if (mLinearThread.isAlive()) {
             mLinearThread.quit();

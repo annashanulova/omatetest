@@ -3,6 +3,8 @@ package com.omatetest.makora.omatetest;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningServiceInfo;
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentValues;
@@ -17,6 +19,7 @@ import android.os.Environment;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -57,16 +60,19 @@ public class MainActivity extends Activity {
 
     private final String APP_LOG_FOLDER_NAME = "mySensorListener";
 
-    private Button mDump, mServiceButton, mWifiScanButton;
+    private Button mDump, mServiceButton, mWifiScanButton, mSaveTimestampButton;
     private Boolean mServiceOn = false;
+    private Boolean mWifiScanOn = false;
     private Context mContext;
     private DBHelper dbHelper;
     private SQLiteDatabase db;
     private WifiManager wifiManager;
     private ActivityManager activityManager;
     private TextView tvInfoText;
+    private EditText etTimestampText;
     private File mLogFile = null;
     private FileOutputStream mFileStream = null;
+    private AlarmManager alarmManager;
 
     private GoogleApiClient mClient = null;
     private static final String AUTH_PENDING = "auth_state_pending";
@@ -74,6 +80,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_OAUTH = 57;
     private Long recordingTimeStart = 1438160400000L;
     private int numberOfSteps = 0;
+    private final int SCAN_ALARM_INTENT = 58;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,6 +91,9 @@ public class MainActivity extends Activity {
         mWifiScanButton.setOnClickListener(onWifiScanButtonListener);
         mServiceButton = (Button) findViewById(R.id.start_service_button);
         mServiceButton.setOnClickListener(mOnStartServiceListener);
+        etTimestampText = (EditText) findViewById(R.id.timestamp_text);
+        mSaveTimestampButton = (Button) findViewById(R.id.save_timestamp);
+        mSaveTimestampButton.setOnClickListener(onCustomeTimestampSave);
         mDump = (Button) findViewById(R.id.dump_button);
         mDump.setOnClickListener(mOnDumpClickListener);
         mContext = getApplicationContext();
@@ -94,6 +104,7 @@ public class MainActivity extends Activity {
             authInProgress = savedInstanceState.getBoolean(AUTH_PENDING);
         }
         buildFitnessClient();
+        alarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
     }
 
     private View.OnClickListener mOnStartServiceListener = new View.OnClickListener() {
@@ -147,8 +158,30 @@ public class MainActivity extends Activity {
             dumpDBTable("google_fit_speed");
             setupFolderAndFile("users_sensors_raw");
             dumpDBTable("users_sensors_raw");
+            setupFolderAndFile("wifi_scan");
+            dumpDBTable("wifi_scan");
+            setupFolderAndFile("custom_timestamps");
+            dumpDBTable("custom_timestamps");
             Toast toast = Toast.makeText(mContext, R.string.dump_success, Toast.LENGTH_SHORT);
             toast.show();
+        }
+    };
+
+    View.OnClickListener onCustomeTimestampSave = new View.OnClickListener() {
+        @Override
+        public void onClick(View view) {
+            String text = etTimestampText.getText().toString();
+            if (!text.equals("")) {
+                ContentValues values = new ContentValues();
+                values.put("timestamp", System.currentTimeMillis());
+                values.put("description", text);
+                Log.d(TAG, "inserting custom timestamp " + values.toString());
+                db.insertOrThrow("custom_timestamps", null, values);
+                Toast toast = Toast.makeText(mContext, R.string.ok, Toast.LENGTH_SHORT);
+                toast.show();
+            } else {
+                Log.d(TAG, "EditText is empty");
+            }
         }
     };
 
@@ -157,8 +190,10 @@ public class MainActivity extends Activity {
         String[] columnNames = tableC.getColumnNames();
         String header = new String("");
         for (String name : columnNames) {
-            header += name;
-            header += ",";
+            if ((!name.equals("id")) && (!name.equals("uploaded"))) {
+                header += name;
+                header += ",";
+            }
         }
         header = header.substring(0, header.length() - 1);
         header += "\n";
@@ -218,6 +253,19 @@ public class MainActivity extends Activity {
                     }
                 } while (tableC.moveToNext());
             }
+        } else if (table_name.equals("wifi_scan")) {
+            if (tableC.moveToFirst()) {
+                do {
+                    String row = String.valueOf(tableC.getLong(1)) + "," + tableC.getString(2) + "," +
+                            String.valueOf(tableC.getFloat(3)) + "," + String.valueOf(tableC.getFloat(4)) + "\n";      //1: timestamp 2:bssid 3:frequency 4:level
+                    try {
+                        mFileStream.write(row.getBytes());
+                    } catch (IOException e) {
+                        Log.d(TAG, "Problem writing row to file");
+                        e.printStackTrace();
+                    }
+                } while (tableC.moveToNext());
+            }
         } else if (table_name.equals("users_sensors_raw")) {
             if (tableC.moveToFirst()) {
                 do {
@@ -232,7 +280,20 @@ public class MainActivity extends Activity {
                     }
                 } while (tableC.moveToNext());
             }
+        } else if (table_name.equals("custom_timestamps")) {
+            if (tableC.moveToFirst()) {
+                do {
+                    String row = String.valueOf(tableC.getLong(1)) + "," + tableC.getString(2) + "\n";      //1: timestamp 2:text
+                    try {
+                        mFileStream.write(row.getBytes());
+                    } catch (IOException e) {
+                        Log.d(TAG, "Problem writing row to file");
+                        e.printStackTrace();
+                    }
+                } while (tableC.moveToNext());
+            }
         }
+        tableC.close();
         Log.d(TAG, "dumped table: " + table_name);
     }
 
@@ -546,14 +607,24 @@ public class MainActivity extends Activity {
     private View.OnClickListener onWifiScanButtonListener = new View.OnClickListener() {
         @Override
         public void onClick(View view) {
-            wifiManager.startScan();
+            Intent intentStart = new Intent(mContext, ScanAlarmReceiver.class);
+            PendingIntent scanStartIntent = PendingIntent.getBroadcast(mContext, SCAN_ALARM_INTENT, intentStart, PendingIntent.FLAG_CANCEL_CURRENT);
+            if (mWifiScanOn) {
+                alarmManager.cancel(scanStartIntent);
+                mWifiScanButton.setText(R.string.scan_wifi);
+                mWifiScanOn = false;
+            } else {
+                Long start = System.currentTimeMillis();
+                alarmManager.setInexactRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP, start, (5 * 1000), scanStartIntent);
+                mWifiScanButton.setText(R.string.stop_scan);
+                mWifiScanOn = true;
+            }
         }
     };
 
     private BroadcastReceiver wifiScanFinishedReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context arg0, Intent arg1) {
-            WifiManager wifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
             List<ScanResult> wifiResults = wifiManager.getScanResults();
             Long timestamp = System.currentTimeMillis();
             for (ScanResult result : wifiResults) {
@@ -594,6 +665,16 @@ public class MainActivity extends Activity {
     protected void onPause() {
         this.unregisterReceiver(wifiScanFinishedReceiver);
         super.onPause();
+    }
+
+    private class ScanAlarmReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.d(TAG, "wifi scan alarm received");
+            wifiManager.startScan();
+            Toast toast = Toast.makeText(mContext, R.string.started_scan, Toast.LENGTH_SHORT);
+            toast.show();
+        }
     }
 
 }

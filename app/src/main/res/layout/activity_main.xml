@@ -33,5 +33,21 @@
         android:layout_below="@+id/dump_button"
         android:text="@string/scan_wifi" />
 
+    <EditText
+        android:id="@+id/timestamp_text"
+        android:layout_width="160dp"
+        android:layout_height="60dp"
+        android:layout_toRightOf="@+id/dump_button"
+        android:layout_alignTop="@+id/dump_button"
+        android:hint="@string/timestamp_desc_hint" />
+
+    <Button
+        android:id="@+id/save_timestamp"
+        android:layout_width="160dp"
+        android:layout_height="40dp"
+        android:layout_below="@+id/timestamp_text"
+        android:layout_alignLeft="@+id/timestamp_text"
+        android:text="@string/save_timestamp" />
+
 
 </RelativeLayout>
