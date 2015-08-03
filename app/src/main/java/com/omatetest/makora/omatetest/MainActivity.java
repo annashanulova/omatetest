@@ -80,7 +80,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_OAUTH = 57;
     private Long recordingTimeStart = 1438160400000L;
     private int numberOfSteps = 0;
-    private final String SCAN_ALARM_INTENT = "initiate_wifi_scan";
+    private final int SCAN_ALARM_INTENT = 58;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -607,16 +607,17 @@ public class MainActivity extends Activity {
     private View.OnClickListener onWifiScanButtonListener = new View.OnClickListener() {
         @Override
         public void onClick(View view) {
-            Intent intentStart = new Intent(mContext, MainActivity.class);
-            PendingIntent scanStartIntent = PendingIntent.getBroadcast(mContext,0,intentStart,PendingIntent.FLAG_CANCEL_CURRENT);
+            Intent intentStart = new Intent(mContext, ScanAlarmReceiver.class);
+            PendingIntent scanStartIntent = PendingIntent.getBroadcast(mContext, SCAN_ALARM_INTENT, intentStart, PendingIntent.FLAG_UPDATE_CURRENT);
             if (mWifiScanOn) {
+                Log.d(TAG, "canceling wifi scan alarm");
                 alarmManager.cancel(scanStartIntent);
                 mWifiScanButton.setText(R.string.scan_wifi);
                 mWifiScanOn = false;
             } else {
                 Long start = System.currentTimeMillis() - 1000;
-                Log.d(TAG,"start wifi scan alarm");
-                alarmManager.setInexactRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP, start, (5 * 1000), scanStartIntent);
+                Log.d(TAG, "starting wifi scan alarm at " + start);
+                alarmManager.setInexactRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP, start, AlarmManager.INTERVAL_FIFTEEN_MINUTES, scanStartIntent);
                 mWifiScanButton.setText(R.string.stop_scan);
                 mWifiScanOn = true;
             }
@@ -660,18 +661,15 @@ public class MainActivity extends Activity {
         super.onResume();
         IntentFilter scanFilter = new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
         this.registerReceiver(wifiScanFinishedReceiver, scanFilter);
-        IntentFilter initiateScanFilter = new IntentFilter(this.SCAN_ALARM_INTENT);
-        this.registerReceiver(scanAlarmReceiver,initiateScanFilter);
     }
 
     @Override
     protected void onPause() {
         this.unregisterReceiver(wifiScanFinishedReceiver);
-        this.unregisterReceiver(scanAlarmReceiver);
         super.onPause();
     }
 
-    private BroadcastReceiver scanAlarmReceiver = new BroadcastReceiver() {
+    public class ScanAlarmReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
             Log.d(TAG, "wifi scan alarm received");
